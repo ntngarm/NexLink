@@ -1,12 +1,17 @@
 mod commands;
 mod db;
 
-use commands::{connection, crud, schema, sql_editor, table, topics};
+use commands::{connection, crud, schedule, schema, sql_editor, table, topics};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            schedule::start(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             connection::test_connection,
             connection::connect_to_db,
@@ -28,6 +33,10 @@ pub fn run() {
             topics::save_topic,
             topics::delete_topic,
             topics::send_topic,
+            topics::export_topics,
+            topics::import_topics,
+            schedule::load_schedule,
+            schedule::save_schedule,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

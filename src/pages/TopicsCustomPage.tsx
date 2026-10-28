@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { SendResultDialog } from "@/components/topics/SendResultDialog";
 import { SendAllDialog, type SendAllItem } from "@/components/topics/SendAllDialog";
+import { ImportExportButtons } from "@/components/topics/ImportExportButtons";
 import { Send, Pencil, Trash2, Plus, X, Loader2, Eraser, SendHorizonal } from "lucide-react";
 
 const emptyTopic = (): Topic => ({
@@ -22,6 +23,7 @@ const emptyTopic = (): Topic => ({
   method: "POST",
   headers: [],
   body_template: "",
+  days_back: 30,
 });
 
 export default function TopicsCustomPage() {
@@ -39,7 +41,7 @@ export default function TopicsCustomPage() {
 
   const load = async () => {
     const all = await invoke.loadTopics().catch(() => [] as Topic[]);
-    setTopics(all.filter((t) => !FILES_43_SET.has(t.id)));
+    setTopics(all.filter((t) => !FILES_43_SET.has(t.id.toLowerCase())));
   };
 
   useEffect(() => { load(); }, []);
@@ -140,6 +142,7 @@ export default function TopicsCustomPage() {
           <p className="text-xs text-muted-foreground">สร้าง query และ API URL ที่กำหนดเอง</p>
         </div>
         <div className="flex items-center gap-2">
+          <ImportExportButtons onImported={load} />
           {topics.length > 0 && (
             <>
               <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setClearAll(true)}>
@@ -207,14 +210,14 @@ export default function TopicsCustomPage() {
 
       {/* Edit / Create Dialog */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>
               {editing && topics.find((t) => t.id === editing.id) ? "แก้ไขหัวข้อ" : "สร้างหัวข้อใหม่"}
             </DialogTitle>
           </DialogHeader>
           {editing && (
-            <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-4 py-2 -mx-6 px-6 min-h-0 overflow-y-auto">
               <div className="flex flex-col gap-1.5">
                 <Label>ชื่อหัวข้อ</Label>
                 <Input
@@ -249,7 +252,7 @@ export default function TopicsCustomPage() {
               <div className="flex flex-col gap-1.5">
                 <Label>SQL Query</Label>
                 <Textarea
-                  className="font-mono text-xs h-24 resize-none"
+                  className="font-mono text-xs min-h-48 resize-y"
                   value={editing.query}
                   onChange={(e) => setEditing((p) => p ? { ...p, query: e.target.value } : p)}
                 />
@@ -257,7 +260,7 @@ export default function TopicsCustomPage() {
               <div className="flex flex-col gap-1.5">
                 <Label>Body Template <span className="text-muted-foreground font-normal">(ไม่บังคับ)</span></Label>
                 <Textarea
-                  className="font-mono text-xs h-20 resize-none"
+                  className="font-mono text-xs min-h-40 resize-y"
                   placeholder={'ว่างไว้ = ส่ง JSON array ตรงๆ\nตัวอย่าง: {"table":"person","body":${result_sql}}'}
                   value={editing.body_template}
                   onChange={(e) => setEditing((p) => p ? { ...p, body_template: e.target.value } : p)}

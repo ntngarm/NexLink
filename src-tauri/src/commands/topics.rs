@@ -2,6 +2,7 @@ use crate::db::{pool, types};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeaderPair {
@@ -19,6 +20,12 @@ pub struct Topic {
     pub headers: Vec<HeaderPair>,
     #[serde(default)]
     pub body_template: String,
+    #[serde(default = "default_days_back")]
+    pub days_back: u32,
+}
+
+fn default_days_back() -> u32 {
+    30
 }
 
 #[derive(Debug, Serialize)]
@@ -35,7 +42,7 @@ fn topics_path(app: &AppHandle) -> std::path::PathBuf {
     dir.join("topics.json")
 }
 
-fn read_all(app: &AppHandle) -> Vec<Topic> {
+pub(crate) fn read_all(app: &AppHandle) -> Vec<Topic> {
     let path = topics_path(app);
     if !path.exists() {
         return vec![];
@@ -72,6 +79,70 @@ pub async fn delete_topic(app: AppHandle, id: String) -> Result<(), String> {
     write_all(&app, &topics)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct TopicsExport {
+    app: String,
+    version: u32,
+    exported_at: String,
+    topics: Vec<Topic>,
+}
+
+/// ส่งออกหัวข้อทั้งหมดเป็นไฟล์ .json (คืน path ที่บันทึก หรือ None ถ้ากดยกเลิก)
+#[tauri::command]
+pub async fn export_topics(app: AppHandle) -> Result<Option<String>, String> {
+    let Some(path) = app
+        .dialog()
+        .file()
+        .add_filter("NexLink", &["json"])
+        .set_file_name("nexlink-topics.json")
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = path.into_path().map_err(|e| e.to_string())?;
+
+    let export = TopicsExport {
+        app: "NexLink".into(),
+        version: 1,
+        exported_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        topics: read_all(&app),
+    };
+    let raw = serde_json::to_string_pretty(&export).map_err(|e| e.to_string())?;
+    fs::write(&path, raw).map_err(|e| e.to_string())?;
+    Ok(Some(path.display().to_string()))
+}
+
+/// นำเข้าหัวข้อจากไฟล์ .json แล้วรวมกับของเดิม (id ซ้ำจะถูกแทนที่) คืนจำนวนที่นำเข้า หรือ None ถ้ากดยกเลิก
+#[tauri::command]
+pub async fn import_topics(app: AppHandle) -> Result<Option<usize>, String> {
+    let Some(path) = app
+        .dialog()
+        .file()
+        .add_filter("NexLink", &["json"])
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+    let path = path.into_path().map_err(|e| e.to_string())?;
+
+    let raw = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    // รับได้ทั้งไฟล์ที่ส่งออกจากโปรแกรม และไฟล์ topics.json ตรงๆ
+    let imported: Vec<Topic> = match serde_json::from_str::<TopicsExport>(&raw) {
+        Ok(export) => export.topics,
+        Err(_) => serde_json::from_str(&raw).map_err(|_| "ไฟล์ไม่ใช่รูปแบบการตั้งค่าของ NexLink".to_string())?,
+    };
+
+    let mut topics = read_all(&app);
+    for topic in &imported {
+        match topics.iter().position(|t| t.id == topic.id) {
+            Some(i) => topics[i] = topic.clone(),
+            None => topics.push(topic.clone()),
+        }
+    }
+    write_all(&app, &topics)?;
+    Ok(Some(imported.len()))
+}
+
 #[tauri::command]
 pub async fn send_topic(app: AppHandle, id: String) -> Result<SendResult, String> {
     let topics = read_all(&app);
@@ -81,10 +152,20 @@ pub async fn send_topic(app: AppHandle, id: String) -> Result<SendResult, String
         .ok_or_else(|| "Topic not found".to_string())?
         .clone();
 
+    send(&topic).await
+}
+
+/// รัน query ของ topic แล้วส่งผลไปที่ API (ใช้ร่วมกับตัวตั้งเวลาส่ง)
+pub(crate) async fn send(topic: &Topic) -> Result<SendResult, String> {
     let db_pool = pool::get_pool().await?;
     let start = std::time::Instant::now();
 
-    let rows = sqlx::query(&topic.query)
+    // แทนตัวแปร ${days_back} ใน query ด้วยจำนวนวันย้อนหลัง
+    let query = topic
+        .query
+        .replace("${days_back}", &topic.days_back.to_string());
+
+    let rows = sqlx::query(&query)
         .fetch_all(&db_pool)
         .await
         .map_err(|e| format!("Query error: {}", e))?;
@@ -92,12 +173,16 @@ pub async fn send_topic(app: AppHandle, id: String) -> Result<SendResult, String
     let json_rows: Vec<serde_json::Value> = rows.iter().map(types::row_to_json).collect();
     let rows_sent = json_rows.len();
 
-    // สร้าง body: ถ้ามี template ให้แทนที่ ${result_sql} ด้วย JSON จริง
+    // สร้าง body: ถ้ามี template ให้แทนที่ ${file_name} ด้วยชื่อแฟ้ม และ ${result_sql} ด้วย JSON จริง
+    // แทน ${file_name} ก่อน เพื่อไม่ให้ไปแทนข้อความที่อยู่ในผล SQL
     let body_str = if topic.body_template.trim().is_empty() {
         serde_json::to_string(&json_rows).map_err(|e| e.to_string())?
     } else {
         let rows_json = serde_json::to_string(&json_rows).map_err(|e| e.to_string())?;
-        topic.body_template.replace("${result_sql}", &rows_json)
+        topic
+            .body_template
+            .replace("${file_name}", &topic.id)
+            .replace("${result_sql}", &rows_json)
     };
 
     let client = reqwest::Client::new();

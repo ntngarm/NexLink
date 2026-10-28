@@ -59,6 +59,22 @@ export interface Topic {
   method: "POST" | "PUT";
   headers: HeaderPair[];
   body_template: string;
+  days_back: number;
+}
+
+export interface ScheduleRun {
+  at: string;
+  ok: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+}
+
+export interface Schedule {
+  enabled: boolean;
+  times: string[];
+  topic_ids: string[];
+  last_run?: ScheduleRun | null;
 }
 
 export interface SendResult {

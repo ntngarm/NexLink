@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@/lib/invoke";
-import type { Topic, SendResult, HeaderPair } from "@/lib/types";
+import type { Topic, SendResult, HeaderPair, Schedule } from "@/lib/types";
 import { FILES_43 } from "@/lib/topics-shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { SendResultDialog } from "@/components/topics/SendResultDialog";
 import { SendAllDialog, type SendAllItem } from "@/components/topics/SendAllDialog";
-import { Send, Pencil, Plus, X, Loader2, Settings2, SendHorizonal } from "lucide-react";
+import { ScheduleDialog } from "@/components/topics/ScheduleDialog";
+import { ImportExportButtons } from "@/components/topics/ImportExportButtons";
+import { Send, Pencil, Plus, X, Loader2, Settings2, SendHorizonal, AlarmClock } from "lucide-react";
 
-type Cfg = Pick<Topic, "query" | "api_url" | "method" | "headers" | "body_template">;
+type Cfg = Pick<Topic, "query" | "api_url" | "method" | "headers" | "body_template" | "days_back">;
+
+const DEFAULT_DAYS_BACK = 30;
 
 const defaultCfg = (file: string): Cfg => ({
   query: `SELECT * FROM ${file.toLowerCase()} LIMIT 1000`,
@@ -21,15 +25,25 @@ const defaultCfg = (file: string): Cfg => ({
   method: "POST",
   headers: [],
   body_template: "",
+  days_back: DEFAULT_DAYS_BACK,
 });
 
-type BulkForm = { api_url: string; method: "POST" | "PUT"; headers: HeaderPair[]; body_template: string };
+const parseDays = (v: string) => Math.max(0, Math.floor(Number(v) || 0));
+
+const QueryVarsHint = () => (
+  <p className="text-[11px] text-muted-foreground">
+    ตัวแปรใน query: <code className="bg-muted px-1 rounded">{"${days_back}"}</code> = จำนวนวันย้อนหลัง เช่น{" "}
+    <code className="bg-muted px-1 rounded">{"WHERE vstdate >= DATE_SUB(CURDATE(), INTERVAL ${days_back} DAY)"}</code>
+  </p>
+);
+
+type BulkForm = { api_url: string; method: "POST" | "PUT"; headers: HeaderPair[]; body_template: string; days_back: number };
 
 export default function Topics43Page() {
   const [configs, setConfigs] = useState<Record<string, Cfg>>({});
   const [editing, setEditing] = useState<{ file: string; no: number; cfg: Cfg } | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkForm, setBulkForm] = useState<BulkForm>({ api_url: "", method: "POST", headers: [], body_template: "" });
+  const [bulkForm, setBulkForm] = useState<BulkForm>({ api_url: "", method: "POST", headers: [], body_template: "", days_back: DEFAULT_DAYS_BACK });
   const [sendingFile, setSendingFile] = useState<string | null>(null);
   const [result, setResult] = useState<{ name: string; data: SendResult } | null>(null);
   const [error, setError] = useState<{ name: string; msg: string } | null>(null);
@@ -37,18 +51,25 @@ export default function Topics43Page() {
   const [sendAllOpen, setSendAllOpen] = useState(false);
   const [sendAllItems, setSendAllItems] = useState<SendAllItem[]>([]);
   const [sendAllRunning, setSendAllRunning] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
 
   useEffect(() => {
+    invoke.loadSchedule().then(setSchedule).catch(() => {});
+  }, []);
+
+  const loadConfigs = () =>
     invoke.loadTopics().then((topics) => {
       const map: Record<string, Cfg> = {};
       for (const t of topics) {
-        if (FILES_43.includes(t.id)) {
-          map[t.id] = { query: t.query, api_url: t.api_url, method: t.method, headers: t.headers, body_template: t.body_template };
+        if (FILES_43.includes(t.id.toLowerCase())) {
+          map[t.id.toLowerCase()] = { query: t.query, api_url: t.api_url, method: t.method, headers: t.headers, body_template: t.body_template, days_back: t.days_back ?? DEFAULT_DAYS_BACK };
         }
       }
       setConfigs(map);
     });
-  }, []);
+
+  useEffect(() => { loadConfigs(); }, []);
 
   const handleSendAll = async () => {
     const initial: SendAllItem[] = FILES_43.map((file, idx) => ({
@@ -96,6 +117,7 @@ export default function Topics43Page() {
       method: first?.method ?? "POST",
       headers: first ? [...first.headers] : [],
       body_template: first?.body_template ?? "",
+      days_back: first?.days_back ?? DEFAULT_DAYS_BACK,
     });
     setBulkOpen(true);
   };
@@ -107,7 +129,7 @@ export default function Topics43Page() {
       for (let i = 0; i < FILES_43.length; i++) {
         const file = FILES_43[i];
         const existing = configs[file] ?? defaultCfg(file);
-        const updated: Cfg = { ...existing, api_url: bulkForm.api_url, method: bulkForm.method, headers: [...bulkForm.headers], body_template: bulkForm.body_template };
+        const updated: Cfg = { ...existing, api_url: bulkForm.api_url, method: bulkForm.method, headers: [...bulkForm.headers], body_template: bulkForm.body_template, days_back: bulkForm.days_back };
         await invoke.saveTopic({ id: file, name: `${i + 1}. ข้อมูลแฟ้ม ${file}`, ...updated });
         newConfigs[file] = updated;
       }
@@ -179,6 +201,11 @@ export default function Topics43Page() {
           <p className="text-xs text-muted-foreground">แก้ไข query และ API URL แล้วกด ส่ง</p>
         </div>
         <div className="flex items-center gap-2">
+          <ImportExportButtons onImported={loadConfigs} />
+          <Button size="sm" variant="outline" onClick={() => setScheduleOpen(true)}>
+            <AlarmClock className="h-4 w-4 mr-1" />
+            {schedule?.enabled && schedule.times.length > 0 ? `ตั้งเวลา ${schedule.times.join(", ")}` : "ตั้งเวลา"}
+          </Button>
           <Button size="sm" variant="outline" onClick={openBulk}>
             <Settings2 className="h-4 w-4 mr-1" />ตั้งค่าทั้งหมด
           </Button>
@@ -201,6 +228,7 @@ export default function Topics43Page() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{file}</span>
                     <Badge variant="outline" className="text-[10px]">{cfg.method}</Badge>
+                    <Badge variant="outline" className="text-[10px]">ย้อนหลัง {cfg.days_back} วัน</Badge>
                     {!hasUrl && (
                       <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-400">
                         ยังไม่มี URL
@@ -231,12 +259,12 @@ export default function Topics43Page() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>{editing && `${editing.no}. ข้อมูลแฟ้ม ${editing.file}`}</DialogTitle>
           </DialogHeader>
           {editing && (
-            <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-4 py-2 -mx-6 px-6 min-h-0 overflow-y-auto">
               <div className="flex gap-2">
                 <div className="flex flex-col gap-1.5 flex-1">
                   <Label>API URL</Label>
@@ -259,24 +287,33 @@ export default function Topics43Page() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="flex flex-col gap-1.5 w-32">
+                  <Label>ย้อนหลัง (วัน)</Label>
+                  <Input
+                    type="number" min={0}
+                    value={editing.cfg.days_back}
+                    onChange={(e) => setEditing((p) => p ? { ...p, cfg: { ...p.cfg, days_back: parseDays(e.target.value) } } : p)}
+                  />
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>SQL Query</Label>
                 <Textarea
-                  className="font-mono text-xs h-24 resize-none"
+                  className="font-mono text-xs min-h-48 resize-y"
                   value={editing.cfg.query}
                   onChange={(e) => setEditing((p) => p ? { ...p, cfg: { ...p.cfg, query: e.target.value } } : p)}
                 />
+                <QueryVarsHint />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>Body Template <span className="text-muted-foreground font-normal">(ไม่บังคับ)</span></Label>
                 <Textarea
-                  className="font-mono text-xs h-20 resize-none"
-                  placeholder={'ว่างไว้ = ส่ง JSON array ตรงๆ\nตัวอย่าง: {"table":"person","body":${result_sql}}'}
+                  className="font-mono text-xs min-h-40 resize-y"
+                  placeholder={'ว่างไว้ = ส่ง JSON array ตรงๆ\nตัวอย่าง: {"table":"${file_name}","body":${result_sql}}'}
                   value={editing.cfg.body_template}
                   onChange={(e) => setEditing((p) => p ? { ...p, cfg: { ...p.cfg, body_template: e.target.value } } : p)}
                 />
-                <p className="text-[11px] text-muted-foreground"><code className="bg-muted px-1 rounded">{"${result_sql}"}</code> จะถูกแทนที่ด้วยผลลัพธ์ SQL</p>
+                <p className="text-[11px] text-muted-foreground"><code className="bg-muted px-1 rounded">{"${result_sql}"}</code> จะถูกแทนที่ด้วยผลลัพธ์ SQL, <code className="bg-muted px-1 rounded">{"${file_name}"}</code> จะถูกแทนที่ด้วยชื่อแฟ้ม (เช่น person)</p>
               </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -308,13 +345,20 @@ export default function Topics43Page() {
         </DialogContent>
       </Dialog>
 
+      <ScheduleDialog
+        open={scheduleOpen}
+        topicIds={FILES_43}
+        onClose={() => setScheduleOpen(false)}
+        onSaved={setSchedule}
+      />
+
       {/* Bulk Dialog */}
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>ตั้งค่า URL และ Headers ทั้ง 43 แฟ้ม</DialogTitle>
+            <DialogTitle>ตั้งค่า URL และ Headers ทั้ง {FILES_43.length} แฟ้ม</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
+          <div className="flex flex-col gap-4 py-2 -mx-6 px-6 min-h-0 overflow-y-auto">
             <div className="flex gap-2">
               <div className="flex flex-col gap-1.5 flex-1">
                 <Label>API URL</Label>
@@ -337,7 +381,16 @@ export default function Topics43Page() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex flex-col gap-1.5 w-32">
+                <Label>ย้อนหลัง (วัน)</Label>
+                <Input
+                  type="number" min={0}
+                  value={bulkForm.days_back}
+                  onChange={(e) => setBulkForm((p) => ({ ...p, days_back: parseDays(e.target.value) }))}
+                />
+              </div>
             </div>
+            <QueryVarsHint />
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <Label>Headers (เพิ่มเติม)</Label>
@@ -370,15 +423,15 @@ export default function Topics43Page() {
             <div className="flex flex-col gap-1.5">
               <Label>Body Template <span className="text-muted-foreground font-normal">(ไม่บังคับ)</span></Label>
               <Textarea
-                className="font-mono text-xs h-20 resize-none"
-                placeholder={'ว่างไว้ = ส่ง JSON array ตรงๆ\nตัวอย่าง: {"table":"person","body":${result_sql}}'}
+                className="font-mono text-xs min-h-40 resize-y"
+                placeholder={'ว่างไว้ = ส่ง JSON array ตรงๆ\nตัวอย่าง: {"table":"${file_name}","body":${result_sql}}'}
                 value={bulkForm.body_template}
                 onChange={(e) => setBulkForm((p) => ({ ...p, body_template: e.target.value }))}
               />
-              <p className="text-[11px] text-muted-foreground"><code className="bg-muted px-1 rounded">{"${result_sql}"}</code> จะถูกแทนที่ด้วยผลลัพธ์ SQL</p>
+              <p className="text-[11px] text-muted-foreground"><code className="bg-muted px-1 rounded">{"${result_sql}"}</code> จะถูกแทนที่ด้วยผลลัพธ์ SQL, <code className="bg-muted px-1 rounded">{"${file_name}"}</code> จะถูกแทนที่ด้วยชื่อแฟ้ม (เช่น person)</p>
             </div>
             <p className="text-xs text-muted-foreground">
-              จะอัปเดต URL, Method, Headers และ Body Template ให้ครบทั้ง 43 แฟ้ม (query ของแต่ละแฟ้มจะยังคงเดิม)
+              จะอัปเดต URL, Method, จำนวนวันย้อนหลัง, Headers และ Body Template ให้ครบทั้ง {FILES_43.length} แฟ้ม (query ของแต่ละแฟ้มจะยังคงเดิม)
             </p>
           </div>
           <DialogFooter>

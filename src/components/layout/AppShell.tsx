@@ -55,7 +55,7 @@ export default function AppShell({ children, connectedDb, onDisconnect }: Props)
             variant={inTopics ? "secondary" : "ghost"}
             size="sm"
             className="justify-start gap-2 h-8"
-            onClick={() => navigate("/topics/custom")}
+            onClick={() => navigate("/topics/43")}
           >
             <Send className="h-4 w-4" />
             <span className="flex-1 text-left">ส่งข้อมูล</span>

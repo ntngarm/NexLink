@@ -57,7 +57,7 @@ export default function SqlEditor() {
           onChange={(e) => setSql(e.target.value)}
           onKeyDown={handleKey}
           placeholder="เขียน SQL query ที่นี่..."
-          className="font-mono text-sm min-h-[140px] resize-none"
+          className="font-mono text-sm min-h-[140px] resize-y"
           spellCheck={false}
         />
         <div className="flex items-center justify-between mt-2">

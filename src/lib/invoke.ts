@@ -8,6 +8,7 @@ import type {
   QueryResult,
   Topic,
   SendResult,
+  Schedule,
 } from "./types";
 
 export const invoke = {
@@ -67,4 +68,12 @@ export const invoke = {
   deleteTopic: (id: string) => tauriInvoke<void>("delete_topic", { id }),
 
   sendTopic: (id: string) => tauriInvoke<SendResult>("send_topic", { id }),
+
+  exportTopics: () => tauriInvoke<string | null>("export_topics"),
+
+  importTopics: () => tauriInvoke<number | null>("import_topics"),
+
+  loadSchedule: () => tauriInvoke<Schedule>("load_schedule"),
+
+  saveSchedule: (schedule: Schedule) => tauriInvoke<void>("save_schedule", { schedule }),
 };

@@ -36,7 +36,7 @@ export default function App() {
           path="/"
           element={
             connectedDb ? (
-              <Navigate to="/table" replace />
+              <Navigate to="/topics/43" replace />
             ) : (
               <ConnectionPage onConnected={setConnectedDb} />
             )
@@ -56,8 +56,8 @@ export default function App() {
                   <Route path="/sql" element={<SqlEditorPage />} />
                   <Route path="/topics/custom" element={<TopicsCustomPage />} />
                   <Route path="/topics/43" element={<Topics43Page />} />
-                  <Route path="/topics" element={<Navigate to="/topics/custom" replace />} />
-                  <Route path="*" element={<Navigate to="/table" replace />} />
+                  <Route path="/topics" element={<Navigate to="/topics/43" replace />} />
+                  <Route path="*" element={<Navigate to="/topics/43" replace />} />
                 </Routes>
               </AppShell>
             ) : (
