@@ -92,11 +92,11 @@ export default function TopicsCustomPage() {
         const res = await invoke.sendTopic(t.id);
         const ok = res.status >= 200 && res.status < 300;
         setSendAllItems((p) => p.map((item) =>
-          item.id === t.id ? { ...item, status: ok ? "ok" : "error", msg: `HTTP ${res.status} · ${res.rows_sent} rows` } : item
+          item.id === t.id ? { ...item, status: ok ? "ok" : "error", msg: `HTTP ${res.status} · ${res.rows_sent} rows`, response: res.body } : item
         ));
       } catch (e) {
         setSendAllItems((p) => p.map((item) =>
-          item.id === t.id ? { ...item, status: "error", msg: String(e) } : item
+          item.id === t.id ? { ...item, status: "error", msg: String(e), response: String(e) } : item
         ));
       }
     }

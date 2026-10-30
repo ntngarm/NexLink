@@ -1,8 +1,24 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import CodeMirror from "@uiw/react-codemirror";
+import { keymap } from "@codemirror/view";
+import { Prec } from "@codemirror/state";
 import { invoke } from "@/lib/invoke";
 import type { QueryResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { sqlWithCompletion } from "./sqlCompletion";
+
+/** ติดตาม dark mode จาก class "dark" บน <html> */
+function useDarkMode() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setDark(document.documentElement.classList.contains("dark"))
+    );
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return dark;
+}
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -12,13 +28,27 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { Play, AlertCircle, Clock, CheckCircle2 } from "lucide-react";
+import { Play, AlertCircle, Clock, CheckCircle2, Save } from "lucide-react";
 
-export default function SqlEditor() {
-  const [sql, setSql] = useState("SELECT * FROM ");
+interface Props {
+  initialSql?: string;
+  /** บันทึก query (คืน true ถ้าบันทึกสำเร็จ) — ไม่ส่งมา = ไม่มีปุ่มบันทึก */
+  onSave?: (sql: string) => Promise<boolean>;
+}
+
+export default function SqlEditor({ initialSql, onSave }: Props) {
+  const [sql, setSql] = useState(initialSql ?? "SELECT * FROM ");
+  const [savedSql, setSavedSql] = useState(initialSql ?? null);
+  const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [schema, setSchema] = useState<Record<string, string[]>>({});
+  const dark = useDarkMode();
+
+  useEffect(() => {
+    invoke.getSchema().then(setSchema).catch(() => {});
+  }, []);
 
   const run = async () => {
     if (!sql.trim()) return;
@@ -35,12 +65,30 @@ export default function SqlEditor() {
     }
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      run();
+  const save = async () => {
+    if (!onSave || saving) return;
+    setSaving(true);
+    try {
+      if (await onSave(sql)) setSavedSql(sql);
+    } finally {
+      setSaving(false);
     }
   };
+  const dirty = savedSql !== sql;
+
+  // ให้ Ctrl+Enter / Ctrl+S เรียกฟังก์ชันตัวล่าสุดเสมอ (extension สร้างครั้งเดียว)
+  const runRef = useRef(run);
+  runRef.current = run;
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  const extensions = useMemo(() => [
+    ...sqlWithCompletion(schema),
+    Prec.highest(keymap.of([
+      { key: "Mod-Enter", run: () => { runRef.current(); return true; } },
+      { key: "Mod-s", preventDefault: true, run: () => { saveRef.current(); return true; } },
+    ])),
+  ], [schema]);
 
   const formatCell = (val: unknown): string => {
     if (val === null || val === undefined) return "";
@@ -52,27 +100,46 @@ export default function SqlEditor() {
     <div className="flex flex-col h-full">
       {/* Editor area */}
       <div className="p-4 border-b">
-        <Textarea
-          value={sql}
-          onChange={(e) => setSql(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="เขียน SQL query ที่นี่..."
-          className="font-mono text-sm min-h-[140px] resize-y"
-          spellCheck={false}
-        />
+        <div className="h-[200px] min-h-[140px] resize-y overflow-hidden rounded-md border border-input text-sm">
+          <CodeMirror
+            value={sql}
+            onChange={setSql}
+            height="100%"
+            className="h-full"
+            theme={dark ? "dark" : "light"}
+            placeholder="เขียน SQL query ที่นี่..."
+            extensions={extensions}
+            basicSetup={{ foldGutter: false, highlightActiveLine: false }}
+          />
+        </div>
         <div className="flex items-center justify-between mt-2">
           <span className="text-xs text-muted-foreground">
-            Ctrl+Enter เพื่อรัน
+            Ctrl+Enter เพื่อรัน{onSave && " · Ctrl+S เพื่อบันทึก"}
           </span>
-          <Button
-            size="sm"
-            onClick={run}
-            disabled={running || !sql.trim()}
-            className="gap-1.5"
-          >
-            <Play className="h-3.5 w-3.5" />
-            {running ? "กำลังรัน..." : "รัน"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {onSave && (
+              <>
+                {savedSql !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    {dirty ? "ยังไม่ได้บันทึก" : "บันทึกแล้ว"}
+                  </span>
+                )}
+                <Button size="sm" variant="outline" onClick={save} disabled={saving} className="gap-1.5">
+                  <Save className="h-3.5 w-3.5" />
+                  {saving ? "กำลังบันทึก..." : "บันทึก"}
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              onClick={run}
+              disabled={running || !sql.trim()}
+              className="gap-1.5"
+            >
+              <Play className="h-3.5 w-3.5" />
+              {running ? "กำลังรัน..." : "รัน"}
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -1,8 +1,8 @@
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "@/components/layout/AppShell";
+import { UpdateChecker } from "@/components/UpdateChecker";
 import ConnectionPage from "@/pages/ConnectionPage";
-import TablePage from "@/pages/TablePage";
-import SqlEditorPage from "@/pages/SqlEditorPage";
+import { WorkspaceProvider } from "@/components/workspace/WorkspaceContext";
 import TopicsCustomPage from "@/pages/TopicsCustomPage";
 import Topics43Page from "@/pages/Topics43Page";
 import { useState, useEffect } from "react";
@@ -11,6 +11,7 @@ import { invoke } from "@/lib/invoke";
 export default function App() {
   const [connectedDb, setConnectedDb] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connectionKey, setConnectionKey] = useState(0);
 
   useEffect(() => {
     invoke.autoConnect()
@@ -31,6 +32,7 @@ export default function App() {
 
   return (
     <HashRouter>
+      <UpdateChecker />
       <Routes>
         <Route
           path="/"
@@ -46,20 +48,28 @@ export default function App() {
           path="/*"
           element={
             connectedDb ? (
+              // เปลี่ยน key เมื่อสลับการเชื่อมต่อ ให้ทุกหน้า (รวมถึงแท็บที่เปิดไว้) โหลดข้อมูลของฐานใหม่
+              <WorkspaceProvider key={connectionKey}>
               <AppShell
                 connectedDb={connectedDb}
                 onDisconnect={() => setConnectedDb(null)}
+                onSwitched={(db) => {
+                  setConnectedDb(db);
+                  setConnectionKey((k) => k + 1);
+                }}
               >
                 <Routes>
-                  <Route path="/table" element={<TablePage />} />
-                  <Route path="/table/:tableName" element={<TablePage />} />
-                  <Route path="/sql" element={<SqlEditorPage />} />
+                  {/* แท็บตาราง/Query แสดงโดย AppShell เอง */}
+                  <Route path="/workspace" element={null} />
+                  <Route path="/table/*" element={<Navigate to="/workspace" replace />} />
+                  <Route path="/sql" element={<Navigate to="/workspace" replace />} />
                   <Route path="/topics/custom" element={<TopicsCustomPage />} />
                   <Route path="/topics/43" element={<Topics43Page />} />
                   <Route path="/topics" element={<Navigate to="/topics/43" replace />} />
                   <Route path="*" element={<Navigate to="/topics/43" replace />} />
                 </Routes>
               </AppShell>
+              </WorkspaceProvider>
             ) : (
               <Navigate to="/" replace />
             )

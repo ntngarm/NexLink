@@ -19,3 +19,6 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+# Update files to upload (npm run release)
+release/

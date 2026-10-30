@@ -56,3 +56,26 @@ pub async fn get_table_columns(table_name: String) -> Result<Vec<ColumnInfo>, St
         })
         .collect())
 }
+
+/// ตารางและคอลัมน์ทั้งหมดของฐานข้อมูลปัจจุบัน (ใช้เติมคำอัตโนมัติใน SQL Editor)
+#[tauri::command]
+pub async fn get_schema() -> Result<std::collections::BTreeMap<String, Vec<String>>, String> {
+    let pool = pool::get_pool().await?;
+    let rows = sqlx::query(
+        "SELECT TABLE_NAME, COLUMN_NAME
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+         ORDER BY TABLE_NAME, ORDINAL_POSITION",
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut schema: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    for r in rows {
+        let table: String = r.try_get("TABLE_NAME").unwrap_or_default();
+        let column: String = r.try_get("COLUMN_NAME").unwrap_or_default();
+        schema.entry(table).or_default().push(column);
+    }
+    Ok(schema)
+}

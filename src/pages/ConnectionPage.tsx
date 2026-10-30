@@ -47,7 +47,7 @@ export default function ConnectionPage({ onConnected }: Props) {
           <div>
             <h1 className="text-xl font-semibold">MySQL Manager</h1>
             <p className="text-sm text-muted-foreground">
-              NexLink · เชื่อมต่อฐานข้อมูล
+              SRPH Link · เชื่อมต่อฐานข้อมูล
             </p>
           </div>
         </div>

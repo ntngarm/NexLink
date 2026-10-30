@@ -1,5 +1,6 @@
 pub mod connection;
 pub mod crud;
+pub mod queries;
 pub mod schedule;
 pub mod schema;
 pub mod sql_editor;

@@ -83,3 +83,11 @@ export interface SendResult {
   rows_sent: number;
   execution_time_ms: number;
 }
+
+export interface QueryNode {
+  name: string;
+  /** path ย่อยจากโฟลเดอร์ queries คั่นด้วย "/" */
+  path: string;
+  is_dir: boolean;
+  children: QueryNode[];
+}

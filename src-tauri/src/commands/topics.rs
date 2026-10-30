@@ -93,8 +93,8 @@ pub async fn export_topics(app: AppHandle) -> Result<Option<String>, String> {
     let Some(path) = app
         .dialog()
         .file()
-        .add_filter("NexLink", &["json"])
-        .set_file_name("nexlink-topics.json")
+        .add_filter("SRPH Link", &["json"])
+        .set_file_name("srph-link-topics.json")
         .blocking_save_file()
     else {
         return Ok(None);
@@ -102,7 +102,7 @@ pub async fn export_topics(app: AppHandle) -> Result<Option<String>, String> {
     let path = path.into_path().map_err(|e| e.to_string())?;
 
     let export = TopicsExport {
-        app: "NexLink".into(),
+        app: "SRPH Link".into(),
         version: 1,
         exported_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         topics: read_all(&app),
@@ -118,7 +118,7 @@ pub async fn import_topics(app: AppHandle) -> Result<Option<usize>, String> {
     let Some(path) = app
         .dialog()
         .file()
-        .add_filter("NexLink", &["json"])
+        .add_filter("SRPH Link", &["json"])
         .blocking_pick_file()
     else {
         return Ok(None);
@@ -129,7 +129,7 @@ pub async fn import_topics(app: AppHandle) -> Result<Option<usize>, String> {
     // รับได้ทั้งไฟล์ที่ส่งออกจากโปรแกรม และไฟล์ topics.json ตรงๆ
     let imported: Vec<Topic> = match serde_json::from_str::<TopicsExport>(&raw) {
         Ok(export) => export.topics,
-        Err(_) => serde_json::from_str(&raw).map_err(|_| "ไฟล์ไม่ใช่รูปแบบการตั้งค่าของ NexLink".to_string())?,
+        Err(_) => serde_json::from_str(&raw).map_err(|_| "ไฟล์ไม่ใช่รูปแบบการตั้งค่าของ SRPH Link".to_string())?,
     };
 
     let mut topics = read_all(&app);

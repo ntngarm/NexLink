@@ -9,6 +9,7 @@ import type {
   Topic,
   SendResult,
   Schedule,
+  QueryNode,
 } from "./types";
 
 export const invoke = {
@@ -36,10 +37,15 @@ export const invoke = {
   getCurrentConnection: () =>
     tauriInvoke<string | null>("get_current_connection"),
 
+  getCurrentProfile: () => tauriInvoke<string | null>("get_current_profile"),
+
   listTables: () => tauriInvoke<string[]>("list_tables"),
 
   getTableColumns: (tableName: string) =>
     tauriInvoke<ColumnInfo[]>("get_table_columns", { tableName }),
+
+  /** ตาราง → รายชื่อคอลัมน์ ของฐานข้อมูลปัจจุบัน */
+  getSchema: () => tauriInvoke<Record<string, string[]>>("get_schema"),
 
   fetchRows: (params: FetchParams) =>
     tauriInvoke<TableData>("fetch_rows", { params }),
@@ -60,6 +66,20 @@ export const invoke = {
 
   executeQuery: (sql: string) =>
     tauriInvoke<QueryResult>("execute_query", { sql }),
+
+  listQueries: () => tauriInvoke<QueryNode[]>("list_queries"),
+
+  readQuery: (path: string) => tauriInvoke<string>("read_query", { path }),
+
+  /** คืน path ที่บันทึกจริง (เติม .sql ให้ถ้าไม่มี) */
+  saveQuery: (path: string, content: string) =>
+    tauriInvoke<string>("save_query", { path, content }),
+
+  createQueryFolder: (path: string) => tauriInvoke<void>("create_query_folder", { path }),
+
+  deleteQueryItem: (path: string) => tauriInvoke<void>("delete_query_item", { path }),
+
+  openQueriesFolder: () => tauriInvoke<void>("open_queries_folder"),
 
   loadTopics: () => tauriInvoke<Topic[]>("load_topics"),
 

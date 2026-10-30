@@ -97,11 +97,11 @@ export default function Topics43Page() {
         const res = await invoke.sendTopic(file);
         const ok = res.status >= 200 && res.status < 300;
         setSendAllItems((p) => p.map((item) =>
-          item.id === file ? { ...item, status: ok ? "ok" : "error", msg: `HTTP ${res.status} · ${res.rows_sent} rows` } : item
+          item.id === file ? { ...item, status: ok ? "ok" : "error", msg: `HTTP ${res.status} · ${res.rows_sent} rows`, response: res.body } : item
         ));
       } catch (e) {
         setSendAllItems((p) => p.map((item) =>
-          item.id === file ? { ...item, status: "error", msg: String(e) } : item
+          item.id === file ? { ...item, status: "error", msg: String(e), response: String(e) } : item
         ));
       }
     }

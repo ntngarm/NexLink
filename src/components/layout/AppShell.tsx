@@ -1,7 +1,12 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { requestUpdateCheck } from "@/components/UpdateChecker";
 import Sidebar from "./Sidebar";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Code2, LogOut, Send, ListPlus, FileStack, ChevronDown } from "lucide-react";
+import { Moon, Sun, Code2, LogOut, Send, ListPlus, FileStack, ChevronDown, ArrowLeftRight } from "lucide-react";
+import { SwitchConnectionDialog } from "./SwitchConnectionDialog";
+import { useWorkspace } from "@/components/workspace/WorkspaceContext";
+import WorkspacePage from "@/pages/WorkspacePage";
 import { useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@/lib/invoke";
 import { cn } from "@/lib/utils";
@@ -10,14 +15,21 @@ interface Props {
   children: ReactNode;
   connectedDb: string;
   onDisconnect: () => void;
+  onSwitched: (database: string) => void;
 }
 
-export default function AppShell({ children, connectedDb, onDisconnect }: Props) {
+export default function AppShell({ children, connectedDb, onDisconnect, onSwitched }: Props) {
   const [dark, setDark] = useState(
     document.documentElement.classList.contains("dark")
   );
   const navigate = useNavigate();
   const location = useLocation();
+  const [version, setVersion] = useState("");
+  const [switchOpen, setSwitchOpen] = useState(false);
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => {});
+  }, []);
 
   const toggleTheme = () => {
     document.documentElement.classList.toggle("dark");
@@ -32,21 +44,35 @@ export default function AppShell({ children, connectedDb, onDisconnect }: Props)
   };
 
   const inTopics = location.pathname.startsWith("/topics");
+  const inWorkspace = location.pathname === "/workspace";
+  const { activeTab, focusQuery } = useWorkspace();
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
       <div className="flex flex-col w-56 border-r bg-sidebar text-sidebar-foreground shrink-0">
         {/* DB header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-sidebar-border">
+        <button
+          onClick={() => setSwitchOpen(true)}
+          title="เปลี่ยนการเชื่อมต่อ"
+          className="flex items-center gap-2 px-4 py-3 border-b border-sidebar-border text-left hover:bg-sidebar-accent/60 transition-colors"
+        >
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-bold shrink-0">
             DB
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold truncate">{connectedDb}</p>
-            <p className="text-[10px] text-muted-foreground">MySQL</p>
+            <p className="text-[10px] text-muted-foreground">MySQL · เปลี่ยนการเชื่อมต่อ</p>
           </div>
-        </div>
+          <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 opacity-60" />
+        </button>
+
+        <SwitchConnectionDialog
+          open={switchOpen}
+          onClose={() => setSwitchOpen(false)}
+          onSwitched={onSwitched}
+          onNew={handleDisconnect}
+        />
 
         {/* Nav */}
         <div className="flex flex-col gap-0.5 p-2">
@@ -93,10 +119,10 @@ export default function AppShell({ children, connectedDb, onDisconnect }: Props)
           )}
 
           <Button
-            variant={location.pathname.startsWith("/sql") ? "secondary" : "ghost"}
+            variant={inWorkspace && activeTab?.kind === "query" ? "secondary" : "ghost"}
             size="sm"
             className="justify-start gap-2 h-8"
-            onClick={() => navigate("/sql")}
+            onClick={() => { focusQuery(); navigate("/workspace"); }}
           >
             <Code2 className="h-4 w-4" />
             SQL Editor
@@ -118,6 +144,12 @@ export default function AppShell({ children, connectedDb, onDisconnect }: Props)
           >
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
+          <button
+            className="text-[10px] text-muted-foreground hover:text-sidebar-foreground"
+            onClick={requestUpdateCheck} title="ตรวจสอบอัปเดต"
+          >
+            v{version}
+          </button>
           <Button
             variant="ghost" size="icon" className="h-7 w-7"
             onClick={handleDisconnect} title="ตัดการเชื่อมต่อ"
@@ -128,7 +160,13 @@ export default function AppShell({ children, connectedDb, onDisconnect }: Props)
       </div>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto">
+        {/* แท็บตาราง/Query render ค้างไว้ตลอด เพื่อให้สลับไปหน้าอื่นแล้วกลับมา ข้อมูลไม่หาย */}
+        <div className={cn("h-full", !inWorkspace && "hidden")}>
+          <WorkspacePage />
+        </div>
+        {!inWorkspace && children}
+      </main>
     </div>
   );
 }

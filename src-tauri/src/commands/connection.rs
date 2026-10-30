@@ -208,3 +208,9 @@ pub async fn auto_connect(app: tauri::AppHandle) -> Result<Option<String>, Strin
 pub async fn get_current_connection() -> Result<Option<String>, String> {
     Ok(pool::get_current_database().await)
 }
+
+/// ชื่อโปรไฟล์ที่เชื่อมต่ออยู่ (โปรไฟล์ล่าสุดที่บันทึกไว้)
+#[tauri::command]
+pub async fn get_current_profile(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    Ok(read_settings(&app).last_profile)
+}

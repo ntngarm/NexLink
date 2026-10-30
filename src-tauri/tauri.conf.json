@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "NexLink",
-  "version": "0.3.0",
+  "productName": "SRPH Link",
+  "version": "0.4.0",
   "identifier": "com.jv.nexlink",
   "build": {
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "NexLink",
+        "title": "SRPH Link",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -35,6 +35,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5MDM4NTgyOTZCOTkyOUIKUldTYmtybVdnb1VEV2RKQWEvUUlMdEZrU1haYnlVdmwwNTFoRmlIZ09wb015QnV0NFQyV3FBUW4K",
+      "endpoints": [
+        "https://jvsk.go.th/api/v1/download/SRPH-Link-latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

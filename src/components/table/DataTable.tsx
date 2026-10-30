@@ -22,7 +22,15 @@ import {
   ChevronRight,
   Search,
   Loader2,
+  MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useDebounce } from "@/hooks/useDebounce";
 
 interface Props {
@@ -152,7 +160,7 @@ export default function DataTable({ tableName }: Props) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-20 sticky left-0 bg-background">
+                <TableHead className="w-16 sticky left-0 bg-background">
                   จัดการ
                 </TableHead>
                 {displayCols.map((col) => (
@@ -174,26 +182,25 @@ export default function DataTable({ tableName }: Props) {
                   className={loading ? "opacity-50 pointer-events-none" : ""}
                 >
                   <TableCell className="sticky left-0 bg-background">
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => setDialog({ mode: "edit", row })}
-                        title="แก้ไข"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => setDialog({ mode: "delete", row })}
-                        title="ลบ"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="จัดการ">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onSelect={() => setDialog({ mode: "edit", row })}>
+                          <Pencil className="h-3.5 w-3.5" />แก้ไข
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => setDialog({ mode: "delete", row })}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />ลบ
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                   {displayCols.map((col) => (
                     <TableCell key={col} className="max-w-[220px]">
